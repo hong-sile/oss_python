@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 import os
 
 # streamlit의 session에 database로 출석 데이터들을 관리
+# 확장한다면 실제 인메모리에서 관리하지 않고 DB를 별도로 파서 관리 가능
 if 'DATABASE' not in st.session_state:
     st.session_state.DATABASE = {}
 
@@ -75,7 +76,7 @@ if page == "home":
                     preview_text = ", ".join(preview_names)
                     if attendee_count > 3:
                         preview_text += f" 외 {attendee_count - 3}명"
-                    st.caption(f"📝 {preview_text}")
+                    st.caption(f"{preview_text}")
                 else:
                     st.caption("아직 출석자가 없습니다.")
 
@@ -95,7 +96,7 @@ elif page == "event" and event_id:
         st.title(f"출석 체크 - {event['event_name']}")
 
         with st.form("attendance"):
-            input_password = st.text_input("출석 비밀번호", type="password")
+            input_password = st.text_input("출석 비밀번호(이벤트 생성자에게 안내받으세요)", type="password")
             name = st.text_input("이름")
             student_id = st.text_input("학번")
             submitted = st.form_submit_button("출석하기")
