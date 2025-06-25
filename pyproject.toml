@@ -1,0 +1,9 @@
+[project]
+name = "oss-python"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "streamlit>=1.40.1",
+]
