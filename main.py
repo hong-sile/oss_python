@@ -3,6 +3,8 @@ import uuid
 from dotenv import load_dotenv
 import os
 
+from model import Event, Attendee
+
 # streamlit의 session에 database로 출석 데이터들을 관리
 # 확장한다면 실제 인메모리에서 관리하지 않고 DB를 별도로 파서 관리 가능
 if 'DATABASE' not in st.session_state:
@@ -27,20 +29,11 @@ if page == "home":
         if submitted:
             if event_name and password:
                 new_event_id = str(uuid.uuid4())
-                st.session_state.DATABASE[new_event_id] = {
-                    "event_name": event_name,
-                    "password": password,
-                    "attendees": []
-                }
+                st.session_state.DATABASE[new_event_id] = Event(
+                    name=event_name,
+                    password=password,
+                )
                 st.success(f"이벤트 '{event_name}' 생성 완료!")
-
-                st.markdown(f"""
-                ### 생성된 링크들:
-                - **출석 URL**: `{main_url}?page=event&event_id={new_event_id}`
-                - **명단 조회 URL**: `{main_url}?page=view&event_id={new_event_id}`
-                """)
-
-                st.info("위 링크들을 복사해서 학생들에게 공유하세요!")
             else:
                 st.error("이벤트 이름과 비밀번호를 모두 입력하세요.")
 
@@ -48,14 +41,14 @@ if page == "home":
         st.subheader("생성된 이벤트 목록")
         st.write(f"총 **{len(st.session_state.DATABASE)}개**의 이벤트가 있습니다.")
 
-        for eid, event_data in st.session_state.DATABASE.items():
-            attendee_count = len(event_data['attendees'])
+        for eid, event in st.session_state.DATABASE.items():
+            attendee_count = event.attendees_count()
 
             with st.container():
                 col1, col2, col3 = st.columns([3, 1, 1])
 
                 with col1:
-                    st.write(f"이벤트 : **{event_data['event_name']}**")
+                    st.write(f"이벤트 : **{event.name}**")
                     st.caption(f"출석자: {attendee_count}명")
 
                 with col2:
@@ -71,18 +64,18 @@ if page == "home":
                         st.rerun()
 
                 if attendee_count > 0:
-                    preview_attendees = event_data['attendees'][:3]
-                    preview_names = [f"{a['name']}({a['student_id']})" for a in preview_attendees]
+                    preview_attendees = event.preview_attendees()
+                    preview_names = [f"{attendee.name}({attendee.student_id})" for attendee in preview_attendees]
                     preview_text = ", ".join(preview_names)
                     if attendee_count > 3:
                         preview_text += f" 외 {attendee_count - 3}명"
                     st.caption(f"{preview_text}")
                 else:
-                    st.caption("아직 출석자가 없습니다.")
+                    st.caption("아직 출석한 학생이 없습니다.")
 
                 st.divider()
     else:
-        st.info("아직 생성된 이벤트가 없습니다. 위에서 새 이벤트를 만들어보세요!")
+        st.info("아직 생성된 이벤트가 없습니다. 위에서 새 이벤트를 만들어보세요.")
 
 elif page == "event" and event_id:
     event = st.session_state.DATABASE.get(event_id)
@@ -93,7 +86,7 @@ elif page == "event" and event_id:
             st.query_params.clear()
             st.rerun()
     else:
-        st.title(f"출석 체크 - {event['event_name']}")
+        st.title(f"출석 체크 - {event.name}")
 
         with st.form("attendance"):
             input_password = st.text_input("출석 비밀번호(이벤트 생성자에게 안내받으세요)", type="password")
@@ -102,31 +95,25 @@ elif page == "event" and event_id:
             submitted = st.form_submit_button("출석하기")
 
             if submitted:
-                if input_password != event["password"]:
+                if not event.check_password(input_password):
                     st.error("비밀번호가 틀렸습니다.")
                 elif not name or not student_id:
                     st.error("이름과 학번을 모두 입력하세요.")
                 else:
-                    existing_student = None
-                    for attendee in event["attendees"]:
-                        if attendee["student_id"] == student_id:
-                            existing_student = attendee
-                            break
-
-                    if existing_student:
-                        st.warning(f"학번 {student_id}는 이미 출석했습니다. (이름: {existing_student['name']})")
+                    if event.already_attended(student_id):
+                        st.warning(f"학번 {student_id}는 이미 출석했습니다.")
                     else:
-                        attendee = {"name": name, "student_id": student_id}
-                        event["attendees"].append(attendee)
+                        attendee = Attendee(name=name, student_id=student_id)
+                        event.attend(attendee)
                         st.success(f"{name}({student_id}) 출석 완료!")
 
         st.subheader("현재 출석 명단")
-        if event["attendees"]:
-            st.write(f"**총 {len(event['attendees'])}명 출석**")
-            for i, a in enumerate(event["attendees"], 1):
-                st.text(f"{i:2d}. {a['student_id']} - {a['name']}")
-        else:
+        if event.is_blank():
             st.info("아직 출석한 사람이 없습니다.")
+        else:
+            st.write(f"**총 {event.attendees_count()}명 출석**")
+            for index, attendee in enumerate(event.all_attendees(), 1):
+                st.text(f"{index:2d}. {attendee.student_id} - {attendee.name}")
 
         if st.button("홈으로 돌아가기"):
             st.query_params.clear()
@@ -141,21 +128,20 @@ elif page == "view" and event_id:
             st.query_params.clear()
             st.rerun()
     else:
-        st.title(f"출석 명단 조회 - {event['event_name']}")
+        st.title(f"출석 명단 조회 - {event.name}")
 
-        if event["attendees"]:
-            st.success(f"**총 {len(event['attendees'])}명 출석**")
+        if not event.is_blank():
+            st.success(f"**총 {event.attendees_count()}명 출석**")
 
-            # 테이블 형태로 표시
             st.subheader("출석자 명단")
-            for i, a in enumerate(event["attendees"], 1):
+            for index, attendee in enumerate(event.all_attendees(), 1):
                 col1, col2, col3 = st.columns([1, 2, 2])
                 with col1:
-                    st.write(f"{i}")
+                    st.write(f"{index}")
                 with col2:
-                    st.write(f"{a['student_id']}")
+                    st.write(f"{attendee.student_id}")
                 with col3:
-                    st.write(f"{a['name']}")
+                    st.write(f"{attendee.name}")
         else:
             st.info("아직 출석한 사람이 없습니다.")
 
