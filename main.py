@@ -129,39 +129,3 @@ elif page == "event" and event_id:
         if st.button("홈으로 돌아가기"):
             st.query_params.clear()
             st.rerun()
-
-elif page == "view" and event_id:
-    event = st.session_state.DATABASE.get(event_id)
-
-    if event is None:
-        st.error("존재하지 않는 이벤트입니다.")
-        if st.button("홈으로 돌아가기"):
-            st.query_params.clear()
-            st.rerun()
-    else:
-        st.title(f"출석 명단 조회 - {event['event_name']}")
-
-        if event["attendees"]:
-            st.success(f"**총 {len(event['attendees'])}명 출석**")
-
-            # 테이블 형태로 표시
-            st.subheader("출석자 명단")
-            for i, a in enumerate(event["attendees"], 1):
-                col1, col2, col3 = st.columns([1, 2, 2])
-                with col1:
-                    st.write(f"{i}")
-                with col2:
-                    st.write(f"{a['student_id']}")
-                with col3:
-                    st.write(f"{a['name']}")
-        else:
-            st.info("아직 출석한 사람이 없습니다.")
-
-        if st.button("홈으로 돌아가기"):
-            st.query_params.clear()
-            st.rerun()
-else:
-    st.error("잘못된 접근입니다.")
-    if st.button("홈으로 돌아가기"):
-        st.query_params.clear()
-        st.rerun()
