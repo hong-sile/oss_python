@@ -3,6 +3,7 @@ import uuid
 from dotenv import load_dotenv
 import os
 
+# streamlit의 session에 database로 출석 데이터들을 관리
 if 'DATABASE' not in st.session_state:
     st.session_state.DATABASE = {}
 
@@ -13,18 +14,18 @@ page = query_params.get("page", "home")
 event_id = query_params.get("event_id", None)
 main_url = os.getenv('MAIN_URL')
 
-# 🎯 홈 페이지 - 이벤트 생성
+# 메인 페이지이고, 출석이벤트를 생성하거나 간단하게 이미 있는 출석 이벤트들을 조회할 수 있습니다.
 if page == "home":
     st.title("출석 이벤트 생성")
 
     with st.form("create_event"):
         event_name = st.text_input("이벤트 이름")
-        password = st.text_input("출석 비밀번호", type="password")
+        password = st.text_input("고유한 출석 비밀번호 (출석할 때 입력해야하는 비밀번호입니다.)", type="password")
         submitted = st.form_submit_button("이벤트 생성")
 
         if submitted:
             if event_name and password:
-                new_event_id = str(uuid.uuid4())[:8]
+                new_event_id = str(uuid.uuid4())
                 st.session_state.DATABASE[new_event_id] = {
                     "event_name": event_name,
                     "password": password,
@@ -97,7 +98,7 @@ elif page == "event" and event_id:
             input_password = st.text_input("출석 비밀번호", type="password")
             name = st.text_input("이름")
             student_id = st.text_input("학번")
-            submitted = st.form_submit_button("✅ 출석하기")
+            submitted = st.form_submit_button("출석하기")
 
             if submitted:
                 if input_password != event["password"]:
@@ -129,3 +130,39 @@ elif page == "event" and event_id:
         if st.button("홈으로 돌아가기"):
             st.query_params.clear()
             st.rerun()
+
+elif page == "view" and event_id:
+    event = st.session_state.DATABASE.get(event_id)
+
+    if event is None:
+        st.error("존재하지 않는 이벤트입니다.")
+        if st.button("홈으로 돌아가기"):
+            st.query_params.clear()
+            st.rerun()
+    else:
+        st.title(f"출석 명단 조회 - {event['event_name']}")
+
+        if event["attendees"]:
+            st.success(f"**총 {len(event['attendees'])}명 출석**")
+
+            # 테이블 형태로 표시
+            st.subheader("출석자 명단")
+            for i, a in enumerate(event["attendees"], 1):
+                col1, col2, col3 = st.columns([1, 2, 2])
+                with col1:
+                    st.write(f"{i}")
+                with col2:
+                    st.write(f"{a['student_id']}")
+                with col3:
+                    st.write(f"{a['name']}")
+        else:
+            st.info("아직 출석한 사람이 없습니다.")
+
+        if st.button("홈으로 돌아가기"):
+            st.query_params.clear()
+            st.rerun()
+else:
+    st.error("잘못된 접근입니다.")
+    if st.button("홈으로 돌아가기"):
+        st.query_params.clear()
+        st.rerun()
